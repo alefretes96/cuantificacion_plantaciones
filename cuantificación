@@ -1,0 +1,102 @@
+%matplotlib notebook
+import numpy as np
+import matplotlib.pyplot as plt
+from skimage.feature import match_template
+from PIL import Image
+
+ImagenTotal = np.asarray(Image.open('Input\parcela_1.png'))
+
+# Inicializacion de celdas
+puntosinteres = []
+
+fig = plt.figure(figsize=(9, 6))
+ax = fig.add_subplot(111)
+ax.imshow(ImagenTotal, cmap=plt.cm.gray)
+text=ax.text(0,0, "", va="bottom", ha="left")
+
+# Funcion interactiva que guarda los puntos donde se hicieron click en la imagen
+def onclick(event):
+    tx = 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f' % (event.button, event.x, event.y, event.xdata, event.ydata)
+    text.set_text(tx)
+    puntosinteres.append([event.xdata, event.ydata])
+
+cid = fig.canvas.mpl_connect('button_press_event', onclick)
+
+# Cuantos puntos se guardaron
+len(puntosinteres)
+
+# Se grafica los puntos sobre la imagen y se puede seleccionar mas si se requeire
+fig = plt.figure(figsize=(10, 6))
+ax = fig.add_subplot(111)
+ax.imshow(ImagenTotal, cmap=plt.cm.gray)
+ax.scatter([x[0] for x in puntosinteres],[y[1] for y in puntosinteres],c='red', marker='+', s=8)
+text=ax.text(0,0, "", va="bottom", ha="left")
+
+def onclick(event):
+    tx = 'button=%d, x=%d, y=%d, xdata=%f, ydata=%f' % (event.button, event.x, event.y, event.xdata, event.ydata)
+    text.set_text(tx)
+    puntosinteres.append([event.xdata, event.ydata])
+
+cid = fig.canvas.mpl_connect('button_press_event', onclick)
+
+# Se muestran todos los puntos de interes
+fig, ax = plt.subplots(len(puntosinteres)//6+1, 6)
+i = 0
+for item in puntosinteres:
+    xinteres = int(item[0])
+    yinteres = int(item[1])
+    radio = 18
+    ax[i//6,i-i//6*6].imshow(ImagenTotal)
+    ax[i//6,i-i//6*6].plot(xinteres,yinteres,color='red', linestyle='dashed', marker='+',
+     markerfacecolor='blue', markersize=8)
+    ax[i//6,i-i//6*6].set_xlim(xinteres-radio,xinteres+radio)
+    ax[i//6,i-i//6*6].set_ylim(yinteres-radio,yinteres+radio)
+    ax[i//6,i-i//6*6].axis('off')
+    ax[i//6,i-i//6*6].set_title(i)
+    i+=1
+
+# En caso de puntos errados, se pueden eliminar de la lista con la funcion de abajo, descomentandola y poner el indice a eliminar
+del puntosinteres[0]
+len(puntosinteres)
+
+listaresultados = []
+for punto in puntosinteres:
+    xinteres = int(punto[0])
+    yinteres = int(punto[1])
+    radio=14
+    imagenband = ImagenTotal[:,:,0]
+    templateband = ImagenTotal[yinteres-radio:yinteres+radio,xinteres-radio:xinteres+radio,0]
+    result= match_template(imagenband, templateband)
+    result = np.where(result>0.80)
+    listaresultados.append(result)
+
+from itertools import cycle
+cycol = cycle('bgrcmk')
+
+fig = plt.figure(figsize=(10, 8))
+ax = fig.add_subplot(111)
+
+i = 1
+for lista in listaresultados:
+    ax.plot(lista[1],lista[0], '.', linewidth=0, markerfacecolor=next(cycol), label=i)
+    i+=1
+ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05),
+          fancybox=True, shadow=True, ncol=5)
+ax.imshow(ImagenTotal[radio:-radio,radio:-radio,:])
+
+datalist = [np.asarray(pares).T for pares in listaresultados]
+print(len(datalist))
+datalist = np.vstack(datalist)
+print(datalist)
+
+from sklearn.cluster import Birch
+brc = Birch(branching_factor=10000, n_clusters=None, threshold=10, compute_labels=True)
+brc.fit(datalist)
+puntosbirch = brc.subcluster_centers_
+fig = plt.figure(figsize=(10, 8))
+ax = fig.add_subplot(111)
+ax.scatter(puntosbirch[:,[1]],puntosbirch[:,[0]], marker='+',color='red')
+ax.imshow(ImagenTotal[radio:-radio,radio:-radio,:])
+
+#Conteo finalmente de la cantidad de arboles que se detecto en la imagen
+len(puntosbirch)
